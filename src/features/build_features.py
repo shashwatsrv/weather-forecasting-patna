@@ -43,8 +43,10 @@ F["doy_sin"] = np.sin(2 * np.pi * np.asarray(ist.dayofyear) / 365.25)
 F["doy_cos"] = np.cos(2 * np.pi * np.asarray(ist.dayofyear) / 365.25)
 
 # ---------- heavy-rain days (IST days, threshold fixed from training years) ----------
-daily = p.groupby(ist.date).sum()
-heavy_hour = pd.Series(ist.date, index=df.index).map(daily >= HEAVY_DAY_MM).astype(float)
+# precipitation at t covers (t-1h, t], so it belongs to the IST day of t - 1h
+rain_day = (ist - pd.Timedelta(hours=1)).date
+daily = p.groupby(rain_day).sum()
+heavy_hour = pd.Series(rain_day, index=df.index).map(daily >= HEAVY_DAY_MM).astype(float)
 
 # ---------- targets, baselines helpers, splits ----------
 train_end = pd.Timestamp(TRAIN_END, tz="UTC") + pd.Timedelta(days=1)   # exclusive
