@@ -9,29 +9,8 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import brier_score_loss, average_precision_score
 from src.config import PROCESSED_DIR, HORIZONS, RAIN_THRESHOLD_MM
-
-IST = "Asia/Kolkata"
-NOT_FEATURES = ["y_temp", "y_amount", "y_rain", "base_yday",
-                "eval_heavy", "eval_monsoon", "split", "now_key", "tgt_key"]
-P = dict(n_estimators=400, learning_rate=0.05, num_leaves=31, min_child_samples=50,
-         subsample=0.8, subsample_freq=1, colsample_bytree=0.8,
-         random_state=42, verbose=-1)
-# Tuned by walk-forward CV inside 2011-2022 (src/models/tune_cv.py); all chose doy features on.
-# (num_leaves, min_child_samples, learning_rate, n_estimators). Rain amount still uses P.
-TUNED = {("temp", 1): (127, 20, 0.02, 880), ("temp", 6): (127, 200, 0.02, 934),
-         ("temp", 24): (127, 200, 0.02, 356), ("rain", 1): (31, 200, 0.05, 218),
-         ("rain", 6): (127, 200, 0.05, 95), ("rain", 24): (15, 200, 0.05, 160)}
-
-
-# Duan smearing factor for the log1p amount model: mean over walk-forward folds 2019-2022
-# (src/models/rain_amount_correction.py). expm1(pred) alone underestimates total rain.
-SMEAR = {1: 1.089, 6: 1.206, 24: 1.230}
-
-
-def params(task, h):
-    nl, mcs, lr, n = TUNED[(task, h)]
-    return {**P, "num_leaves": nl, "min_child_samples": mcs, "learning_rate": lr,
-            "n_estimators": n}
+# Tuned params, smearing factors etc. are defined once in frozen_config.
+from src.models.frozen_config import IST, NOT_FEATURES, P, SMEAR, params
 
 
 def load(h):
