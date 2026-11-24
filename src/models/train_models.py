@@ -16,6 +16,17 @@ NOT_FEATURES = ["y_temp", "y_amount", "y_rain", "base_yday",
 P = dict(n_estimators=400, learning_rate=0.05, num_leaves=31, min_child_samples=50,
          subsample=0.8, subsample_freq=1, colsample_bytree=0.8,
          random_state=42, verbose=-1)
+# Tuned by walk-forward CV inside 2011-2022 (src/models/tune_cv.py); all chose doy features on.
+# (num_leaves, min_child_samples, learning_rate, n_estimators). Rain amount still uses P.
+TUNED = {("temp", 1): (127, 20, 0.02, 880), ("temp", 6): (127, 200, 0.02, 934),
+         ("temp", 24): (127, 200, 0.02, 356), ("rain", 1): (31, 200, 0.05, 218),
+         ("rain", 6): (127, 200, 0.05, 95), ("rain", 24): (15, 200, 0.05, 160)}
+
+
+def params(task, h):
+    nl, mcs, lr, n = TUNED[(task, h)]
+    return {**P, "num_leaves": nl, "min_child_samples": mcs, "learning_rate": lr,
+            "n_estimators": n}
 
 
 def load(h):
@@ -40,7 +51,7 @@ for h in HORIZONS:
     # ---------------- temperature (models predict change from current temp) ----------------
     ytr = tr["y_temp"] - tr["temperature_2m"]
     ridge = make_pipeline(StandardScaler(), Ridge(alpha=1.0)).fit(tr[feats], ytr)
-    gbm = lgb.LGBMRegressor(**P).fit(tr[feats], ytr)
+    gbm = lgb.LGBMRegressor(**params("temp", h)).fit(tr[feats], ytr)
     clim = tr.groupby("tgt_key")["y_temp"].mean()
     c_tgt, c_now = va["tgt_key"].map(clim), va["now_key"].map(clim)
     base = {"persistence": va["temperature_2m"], "same_hour_yesterday": va["base_yday"],
@@ -62,7 +73,7 @@ for h in HORIZONS:
     print(pd.DataFrame(rows).round(3).to_string(index=False))
 
     # ---------------- rain occurrence ----------------
-    clf = lgb.LGBMClassifier(**P).fit(tr[feats], tr["y_rain"])
+    clf = lgb.LGBMClassifier(**params("rain", h)).fit(tr[feats], tr["y_rain"])
     prob = pd.Series(clf.predict_proba(va[feats])[:, 1], index=va.index)
     seas = va["tgt_key"].map(tr.groupby("tgt_key")["y_rain"].mean())
     rbase = {"seasonal_prob": seas,
