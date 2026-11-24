@@ -23,6 +23,11 @@ TUNED = {("temp", 1): (127, 20, 0.02, 880), ("temp", 6): (127, 200, 0.02, 934),
          ("rain", 6): (127, 200, 0.05, 95), ("rain", 24): (15, 200, 0.05, 160)}
 
 
+# Duan smearing factor for the log1p amount model: mean over walk-forward folds 2019-2022
+# (src/models/rain_amount_correction.py). expm1(pred) alone underestimates total rain.
+SMEAR = {1: 1.089, 6: 1.206, 24: 1.230}
+
+
 def params(task, h):
     nl, mcs, lr, n = TUNED[(task, h)]
     return {**P, "num_leaves": nl, "min_child_samples": mcs, "learning_rate": lr,
@@ -96,7 +101,8 @@ for h in HORIZONS:
     # ---------------- rain amount (trained on wet hours, log target) ----------------
     wet = tr[tr["y_rain"] == 1]
     reg = lgb.LGBMRegressor(**P).fit(wet[feats], np.log1p(wet["y_amount"]))
-    amt_wet = pd.Series(np.expm1(reg.predict(va[feats])), index=va.index)  # amount IF it rains
+    lp = reg.predict(va[feats])
+    amt_wet = pd.Series(np.maximum(np.exp(lp) * SMEAR[h] - 1, 0), index=va.index)  # amount IF it rains
     expected = prob * amt_wet                                              # P(rain) x amount
     clim_amt = va["tgt_key"].map(tr.groupby("tgt_key")["y_amount"].mean())
     amt = {"zero": pd.Series(0.0, index=va.index), "climatology_mean": clim_amt,
