@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 
-DATA_DIR = Path(os.environ.get("WEATHER_DATA_DIR", r"D:\datasets\weather-patna"))
+DATA_DIR = Path(os.environ.get("WEATHER_DATA_DIR", r"E:\d\datasets\weather-patna"))
 RAW_DIR = DATA_DIR / "raw"
 INTERIM_DIR = DATA_DIR / "interim"
 PROCESSED_DIR = DATA_DIR / "processed"
