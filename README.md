@@ -63,9 +63,9 @@ One test year is one sample, so the frozen recipe was also re-run year by year (
 
 To fix the biggest limitations (backtest only, no comparison with weather services), the frozen models now also run **live**:
 
-- **Every hour**, `src/live/log_forecasts.py` fetches the last 3 days of weather for the same grid cell from Open-Meteo's ECMWF IFS feed. ERA5 itself arrives about 5 days late, so it can't be used live. The script builds features with the same code as training and logs the LightGBM forecasts for 1h, 6h and 24h ahead.
+- **Every hour**, a GitHub Actions workflow in [weather-patna-live-log](https://github.com/shashwatsrv/weather-patna-live-log) runs `src/live/log_forecasts.py`, pinned to the frozen code. It fetches the last 3 days of weather for the same grid cell from Open-Meteo's ECMWF IFS feed. ERA5 itself arrives about 5 days late, so it can't be used live. The script builds features with the same code as training and logs the LightGBM forecasts for 1h, 6h and 24h ahead.
 - **In the same row**, it logs the best baselines, plus ECMWF IFS and GFS forecasts for the same valid times, as issued at that moment.
-- **Once ERA5 catches up**, `src/live/score_live.py` scores everything against it.
+- **Once ERA5 catches up**, `src/live/score_live.py` scores everything against it. A weekly workflow does this, and the log, scores and models are all kept in that repo.
 
 This is a prospective test: none of these hours existed when the configuration was frozen. Results will be added once there are a few months of data. Two things to keep in mind when reading them:
 
@@ -125,7 +125,7 @@ $env:WEATHER_DATA_DIR = "D:\datasets\weather-patna"   # any folder outside the r
 .venv\Scripts\python -m streamlit run app\app.py                 # backtest dashboard
 ```
 
-The frozen hyperparameters, smearing factors and baselines are in `src/models/frozen_config.py`, so `tune_cv` and `rain_amount_correction` only need re-running to check how they were chosen. LightGBM results can differ slightly between versions and machines. `save_final_models` checks that the saved models reproduce the frozen 2025 predictions before saving them. To log hourly, point Windows Task Scheduler at `scripts\log_forecast.cmd`.
+The frozen hyperparameters, smearing factors and baselines are in `src/models/frozen_config.py`, so `tune_cv` and `rain_amount_correction` only need re-running to check how they were chosen. LightGBM results can differ slightly between versions and machines. `save_final_models` checks that the saved models reproduce the frozen 2025 predictions before saving them. Live logging runs on GitHub Actions in the log repo. To log from your own machine instead, point Windows Task Scheduler at `scripts\log_forecast.cmd`.
 
 
 ## Data and attribution
