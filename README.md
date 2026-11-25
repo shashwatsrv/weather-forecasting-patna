@@ -1,6 +1,6 @@
 # Weather Forecasting for Patna (ERA5)
 
-Supervised models that forecast temperature and rain 1h, 6h and 24h ahead for one ERA5 grid cell near Patna, evaluated against strong baselines on a held-out year. This is a historical backtesting experiment on reanalysis data, not an operational forecast.
+Supervised models that forecast temperature and rain 1h, 6h and 24h ahead for one ERA5 grid cell near Patna, evaluated against strong baselines on a held-out year. This is a historical backtesting experiment on reanalysis data, not an operational forecast. Since November 2026, the frozen models also run live every hour next to ECMWF and GFS forecasts ([live test](#live-test-in-progress)).
 
 ## Results on the held-out year (2025)
 
@@ -61,18 +61,47 @@ One test year is one sample, so the frozen recipe was also re-run year by year (
 
 ## Live test (in progress)
 
-To fix the biggest limitations (backtest only, no comparison with weather services), the frozen models now also run **live**:
+**Status:** running since **25 November 2026**. No results yet; the first meaningful comparison is expected around February 2027 (see the timeline below).
 
-- **Every hour**, a GitHub Actions workflow in [weather-patna-live-log](https://github.com/shashwatsrv/weather-patna-live-log) runs `src/live/log_forecasts.py`, pinned to the frozen code. It fetches the last 3 days of weather for the same grid cell from Open-Meteo's ECMWF IFS feed. ERA5 itself arrives about 5 days late, so it can't be used live. The script builds features with the same code as training and logs the LightGBM forecasts for 1h, 6h and 24h ahead.
-- **In the same row**, it logs the best baselines, plus ECMWF IFS and GFS forecasts for the same valid times, as issued at that moment.
-- **Once ERA5 catches up**, `src/live/score_live.py` scores everything against it. A weekly workflow does this, and the log, scores and models are all kept in that repo.
+Everything above is a backtest on past data. To test the frozen models on weather that didn't exist when they were built, and to compare them with real weather services, they now also run **live**. This addresses two of the limitations below: the results being a backtest only, and there being no comparison with weather services.
 
-This is a prospective test: none of these hours existed when the configuration was frozen. Results will be added once there are a few months of data. Two things to keep in mind when reading them:
+### How it works
 
-- **IFS has a built-in advantage.** It comes from the same model family as ERA5, the data everything is scored against.
-- **Live inputs differ from the training inputs**, which will probably cost the LightGBM models some skill.
+- **Every hour**, a GitHub Actions workflow in the separate repo [weather-patna-live-log](https://github.com/shashwatsrv/weather-patna-live-log) runs `src/live/log_forecasts.py`:
+  - It uses this repo's code pinned at commit `eb987d5` and the frozen final models (trained on 2011-2024), so the live test can't be affected by later changes here.
+  - It fetches the last 3 days of weather for the same grid cell from Open-Meteo's ECMWF IFS feed. ERA5 arrives about 5 days late, so it can't be used as a live input.
+  - It builds features with the same code as in training.
+- **Each run logs one row per horizon (1h, 6h, 24h)** with:
+  - the LightGBM forecasts,
+  - the best baselines,
+  - the ECMWF IFS and GFS forecasts for the same valid hour, as issued at that moment.
+- **Once a week**, a second workflow scores every logged forecast whose valid hour ERA5 already covers, using `src/live/score_live.py`.
+- **The data stays in that repo**, so this repo stays code-only. Its hourly commits are made by `github-actions[bot]`.
 
-The weather-service comparison will be reported as it comes out, whichever way.
+### Following progress
+
+- [Actions](https://github.com/shashwatsrv/weather-patna-live-log/actions): run history; a failed run shows in red.
+- [`data/live/forecast_log.csv`](https://github.com/shashwatsrv/weather-patna-live-log/blob/main/data/live/forecast_log.csv): every forecast logged so far.
+- [`data/live/live_scores.csv`](https://github.com/shashwatsrv/weather-patna-live-log/blob/main/data/live/live_scores.csv): the latest scores. This file appears after the first weekly scoring that has data to score.
+
+### Timeline
+
+| When | What it can show |
+|---|---|
+| Early December 2026 | First scores. A check that the pipeline works end to end, not a result. |
+| February 2027 (~2-3 months) | First temperature comparison worth quoting, for winter only |
+| Mid 2027 (~6 months) | Temperature across winter and the pre-monsoon heat |
+| October 2027 (after the June-September monsoon) | The first meaningful rain comparison, since most of the year's rain falls in the monsoon |
+
+Results will be added here at those points, whichever way they come out, including if the weather services win.
+
+### How to read the results
+
+- **This is a prospective test:** none of the logged hours existed when the configuration was frozen, so there's no way to tune to them.
+- **IFS has a built-in advantage:** it comes from the same model family as ERA5, the data everything is scored against.
+- **Live inputs differ from the training inputs** (IFS instead of ERA5), which will probably cost the LightGBM models some skill compared with the backtest.
+- **Weather-service rain is a single amount, not a probability.** For the Brier score, a forecast of at least 0.1 mm counts as 1 and anything less as 0.
+- **Gaps are expected:** GitHub's scheduler sometimes runs late or skips a run. All forecasts are scored on the same hours.
 
 ## Method in brief
 
