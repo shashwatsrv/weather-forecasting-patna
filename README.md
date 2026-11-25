@@ -25,6 +25,27 @@ Skill = 1 - model error / baseline error, against the **best simple baseline for
 - A ridge regression on the same features loses to the best baseline at 1h and 6h. Most of the gain comes from the non-linear model, not the features alone.
 - Results by season (monsoon June-September vs the rest) and on heavy-rain days are in `headline.csv`, produced by the evaluation script, and on the dashboard.
 
+### Year-to-year variation (rolling origin)
+
+One test year is one sample, so the frozen recipe was also re-run year by year (added after the test run, for reporting only; nothing was re-tuned). For each year from 2019 to 2025, the models were trained on all earlier years and scored on that year. Skill vs the same best baselines:
+
+| Target | h | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | Mean ± SD |
+|---|---|---|---|---|---|---|---|---|---|
+| Temperature (MAE) | 1h | 16.7% | 16.3% | 15.0% | 15.6% | 15.0% | 15.9% | 17.6% | 16.0 ± 0.9% |
+| | 6h | 36.2% | 35.4% | 34.3% | 30.6% | 30.3% | 33.8% | 35.6% | 33.8 ± 2.4% |
+| | 24h | 12.3% | 13.8% | 13.0% | 13.3% | 9.8% | 9.3% | 14.5% | 12.3 ± 2.0% |
+| Rain occurrence (Brier) | 1h | 29.0% | 29.2% | 30.3% | 25.6% | 27.0% | 28.4% | 25.8% | 27.9 ± 1.8% |
+| | 6h | 23.4% | 18.5% | 27.3% | 22.6% | 30.7% | 22.2% | 26.0% | 24.4 ± 4.0% |
+| | 24h | 11.1% | 10.2% | 13.9% | 13.9% | 20.5% | 13.5% | 18.0% | 14.4 ± 3.6% |
+| Rain amount (RMSE) | 1h | 10.8% | 11.2% | 5.8% | 19.3% | 11.6% | 12.1% | 15.2% | 12.3 ± 4.2% |
+| | 6h | 5.4% | 2.1% | 9.0% | 5.3% | 4.4% | 4.2% | 7.4% | 5.4 ± 2.2% |
+| | 24h | 1.6% | 0.9% | 2.3% | 2.5% | 2.7% | 1.4% | 2.1% | 1.9 ± 0.6% |
+
+- Temperature and rain occurrence beat the best baseline in **every one of the 7 years** at every horizon.
+- **2025 was a favourable year** for temperature: the best of the 7 at 1h and 24h. That explains most of the "test beat validation" gap. Expect roughly 16% / 34% / 12% in a typical year, not the 2025 figures.
+- 24h rain amount stays at about 2% in every year, and its interval includes zero in most of them, so the "no real skill at 24h" conclusion holds.
+- Caveat: only 2025 is fully out-of-sample. 2019-2022 were the tuning folds and 2023-2024 were used to choose the baselines, so those years lean slightly in the model's favour.
+
 ### Where the models go wrong (error analysis)
 
 ![Temperature MAE by hour and month](reports/figures/temp_mae_by_hour_month.png)
@@ -37,6 +58,21 @@ Skill = 1 - model error / baseline error, against the **best simple baseline for
 - **Heavy-rain days** (24 days with at least 17.5 mm): the models catch *that* it will be a wet day, but under-forecast *how* wet as lead time grows. The forecast total is 89% / 61% / 43% of the observed total at 1h / 6h / 24h. At 6h, 23 of the 24 heavy days still got a forecast of at least 10 mm.
 
 ![Heavy-day totals](reports/figures/heavy_day_totals.png)
+
+## Live test (in progress)
+
+To fix the biggest limitations (backtest only, no comparison with weather services), the frozen models now also run **live**:
+
+- **Every hour**, `src/live/log_forecasts.py` fetches the last 3 days of weather for the same grid cell from Open-Meteo's ECMWF IFS feed. ERA5 itself arrives about 5 days late, so it can't be used live. The script builds features with the same code as training and logs the LightGBM forecasts for 1h, 6h and 24h ahead.
+- **In the same row**, it logs the best baselines, plus ECMWF IFS and GFS forecasts for the same valid times, as issued at that moment.
+- **Once ERA5 catches up**, `src/live/score_live.py` scores everything against it.
+
+This is a prospective test: none of these hours existed when the configuration was frozen. Results will be added once there are a few months of data. Two things to keep in mind when reading them:
+
+- **IFS has a built-in advantage.** It comes from the same model family as ERA5, the data everything is scored against.
+- **Live inputs differ from the training inputs**, which will probably cost the LightGBM models some skill.
+
+The weather-service comparison will be reported as it comes out, whichever way.
 
 ## Method in brief
 
@@ -62,8 +98,8 @@ Skill = 1 - model error / baseline error, against the **best simple baseline for
 
 - **Reanalysis, not observations.** ERA5 is a model-based reconstruction of the weather on a ~28 km grid. It smooths local extremes, especially convective rain, so this is not a forecast of what a Patna rain gauge would record.
 - **Baselines, not weather services.** The models are compared with simple baselines, not with operational forecasts. I looked for a fair comparison and found no long archive of as-issued forecasts at 1h/6h/24h leads that overlaps the training years. Short archives (from 2021-2024) and stitched short-lead series exist, but they would have meant reusing the test year or a biased comparison. So this project makes no claim about beating a weather service.
-- **Backtest, not a live system.** Inputs at forecast time are ERA5 values, which in reality are only published with a delay of about 5 days. A live system would need real-time inputs and would likely do worse.
-- **Test skill came out higher than validation skill** (temperature +17.6/35.6/14.5% on 2025 vs +15.3/31.6/9.1% on 2023-2024). Two likely reasons: the final models had two more recent training years, and 2025's baselines were a bit harder to beat. A leakage audit found nothing: the test path is the same code as the validation check, and fit/score separation is asserted. Still, one year is one sample, and the intervals above describe day-to-day noise within 2025, not year-to-year variation.
+- **The results above are a backtest.** Their inputs are ERA5 values, which in reality are only published with a delay of about 5 days. The live test above uses real-time inputs instead. It has only just started, so there are no live results yet.
+- **Test skill came out higher than validation skill** (temperature +17.6/35.6/14.5% on 2025 vs +15.3/31.6/9.1% on 2023-2024). Two likely reasons: the final models had two more recent training years, and 2025's baselines were a bit harder to beat. A leakage audit found nothing: the test path is the same code as the validation check, and fit/score separation is asserted. The rolling-origin results show the bigger reason: 2025 was simply a good year for the model, at the top of the 2019-2025 range for temperature.
 - **One grid cell, one year of test.** Nothing here shows the approach transfers to other locations.
 - **Known weak spots** (see the error analysis): rain amounts at 24h, heavy-rain totals, December fog, and under-confident monsoon probabilities.
 
@@ -82,10 +118,14 @@ $env:WEATHER_DATA_DIR = "D:\datasets\weather-patna"   # any folder outside the r
 .venv\Scripts\python -m src.evaluation.evaluate_test            # check on 2023-2024
 .venv\Scripts\python -m src.evaluation.evaluate_test --final    # train 2011-2024, score 2025 once
 .venv\Scripts\python -m src.evaluation.error_analysis
+.venv\Scripts\python -m src.evaluation.rolling_origin          # year-by-year skill, 2019-2025
+.venv\Scripts\python -m src.models.save_final_models           # save frozen models for live use
+.venv\Scripts\python -m src.live.log_forecasts                  # one live forecast (run hourly)
+.venv\Scripts\python -m src.live.score_live                     # score the live log against ERA5
 .venv\Scripts\python -m streamlit run app\app.py                 # backtest dashboard
 ```
 
-The frozen hyperparameters, smearing factors and baselines are in `src/models/frozen_config.py`, so `tune_cv` and `rain_amount_correction` only need re-running to check how they were chosen. LightGBM results can differ slightly between versions and machines.
+The frozen hyperparameters, smearing factors and baselines are in `src/models/frozen_config.py`, so `tune_cv` and `rain_amount_correction` only need re-running to check how they were chosen. LightGBM results can differ slightly between versions and machines. `save_final_models` checks that the saved models reproduce the frozen 2025 predictions before saving them. To log hourly, point Windows Task Scheduler at `scripts\log_forecast.cmd`.
 
 
 ## Data and attribution
