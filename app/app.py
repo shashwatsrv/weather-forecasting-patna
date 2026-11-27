@@ -2,6 +2,8 @@
 
 Run from the project root:  streamlit run app/app.py
 Reads <WEATHER_DATA_DIR>/processed/test_eval/ written by src/evaluation/evaluate_test.py --final.
+If that folder isn't there (e.g. on Streamlit Community Cloud), it reads byte-identical copies
+published in the live-log repo, so this repo stays code-only.
 Shows precomputed results only; it never calls a weather API.
 """
 import sys
@@ -16,14 +18,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.config import PROCESSED_DIR, HEAVY_DAY_MM, RAIN_THRESHOLD_MM  # noqa: E402
 from src.models.frozen_config import IST, BEST_BASELINE  # noqa: E402
 
-SRC = PROCESSED_DIR / "test_eval"
+LOCAL = PROCESSED_DIR / "test_eval"
+REMOTE = "https://raw.githubusercontent.com/shashwatsrv/weather-patna-live-log/main/data/backtest/"
+SRC = str(LOCAL) + "/" if (LOCAL / "headline.csv").exists() else REMOTE
 alt.data_transformers.disable_max_rows()
 st.set_page_config(page_title="Patna ERA5 forecast backtest", layout="wide")
 
 
 @st.cache_data
 def load_preds(h):
-    d = pd.read_csv(SRC / f"preds_h{h}.csv", index_col=0)
+    d = pd.read_csv(SRC + f"preds_h{h}.csv", index_col=0)
     d.index = pd.to_datetime(d.index, utc=True)
     valid = d.index.tz_convert(IST) + pd.Timedelta(hours=h)
     d["valid"] = valid.tz_localize(None)                        # IST wall-clock time
@@ -33,11 +37,13 @@ def load_preds(h):
 
 @st.cache_data
 def load_headline():
-    return pd.read_csv(SRC / "headline.csv")
+    return pd.read_csv(SRC + "headline.csv")
 
 
-if not (SRC / "headline.csv").exists():
-    st.error(f"No test-year results found in {SRC}. Run "
+try:
+    load_headline()
+except Exception as e:
+    st.error(f"Couldn't load the test-year results from {SRC} ({e}). Locally, run "
              "`python -m src.evaluation.evaluate_test --final` first.")
     st.stop()
 
