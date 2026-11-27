@@ -26,6 +26,26 @@ SRC = str(LOCAL) + "/" if (LOCAL / "headline.csv").exists() else REMOTE
 LIVE_LOG = ("https://raw.githubusercontent.com/shashwatsrv/weather-patna-live-log/main/"
             "data/live/forecast_log.csv")
 alt.data_transformers.disable_max_rows()
+BASELINE_INFO = {                                # hover text for the sidebar baseline names
+    "temp": {
+        "persistence": "Forecast = the temperature right now. Nothing changes.",
+        "same_hour_yesterday": "Forecast = the temperature 24 hours before the target hour, "
+                               "i.e. the same time yesterday.",
+        "clim+anomaly": "Forecast = the 2011-2024 average for that month and hour, plus how far "
+                        "above or below average it is right now.",
+    },
+    "rain": {
+        "rain_now": "Forecast rain (probability 1) if at least 0.1 mm fell in the last hour, "
+                    "otherwise no rain (probability 0).",
+        "seasonal_prob": "Forecast probability = how often it rained at that month and hour "
+                         "in 2011-2024.",
+    },
+    "amount": {
+        "rain_now": "Forecast amount = the rain that fell in the last hour.",
+        "climatology_mean": "Forecast amount = the 2011-2024 average rain for that month and hour.",
+    },
+}
+VT = alt.Tooltip("valid:T", title="valid (IST)", format="%d %b %Y, %H:%M")  # hover shows time too
 st.set_page_config(page_title="Patna weather forecast", layout="wide")
 
 
@@ -111,7 +131,7 @@ with tab_live:
             y=alt.Y("°C:Q", scale=alt.Scale(zero=False)),
             color=alt.Color("series:N", scale=alt.Scale(domain=list(ln.values()),
                             range=["#1f77b4", "#2ca02c", "#d62728"])),
-            tooltip=["valid:T", "series:N", alt.Tooltip("°C:Q", format=".1f")]
+            tooltip=[VT, "series:N", alt.Tooltip("°C:Q", format=".1f")]
         ).properties(height=280, title=f"Temperature forecasts issued in the last 3 days, {hh}h ahead"),
             use_container_width=True)
         st.info("**Not verified yet.** These forecasts are scored against ERA5 once it catches "
@@ -133,11 +153,16 @@ with st.sidebar:
                         (start_default + pd.Timedelta(days=13)).date()),
                         min_value=d["valid"].min().date(), max_value=d["valid"].max().date())
     st.markdown("---")
+    def bl(target):                                  # baseline name with a hover explanation
+        name = BEST_BASELINE[target][h]
+        return (f'<code title="{BASELINE_INFO[target][name]}" style="cursor:help; '
+                f'text-decoration:underline dotted">{name}</code>')
     st.markdown(f"**Best baselines ({h}h)**  \n"
-                f"Temperature: `{BEST_BASELINE['temp'][h]}`  \n"
-                f"Rain occurrence: `{BEST_BASELINE['rain'][h]}`  \n"
-                f"Rain amount: `{BEST_BASELINE['amount'][h]}`")
-    st.caption("Baselines were chosen on the 2023-2024 validation years.")
+                f"Temperature: {bl('temp')}  \n"
+                f"Rain occurrence: {bl('rain')}  \n"
+                f"Rain amount: {bl('amount')}", unsafe_allow_html=True)
+    st.caption("Hover over a name to see what it does. Baselines were chosen on the "
+               "2023-2024 validation years.")
 
 lo, hi = (rng if isinstance(rng, tuple) and len(rng) == 2 else (rng, rng))
 w = d[(d["valid"] >= pd.Timestamp(lo)) & (d["valid"] < pd.Timestamp(hi) + pd.Timedelta(days=1))]
@@ -169,7 +194,7 @@ with tab_bt:
         x=alt.X("valid:T", title="Valid time (IST)"), y=alt.Y("°C:Q", scale=alt.Scale(zero=False)),
         color=alt.Color("series:N", scale=alt.Scale(domain=list(names.values()),
                         range=["#9467bd", "#1f77b4", "#ff7f0e"])),
-        tooltip=["valid:T", "series:N", alt.Tooltip("°C:Q", format=".1f")]
+        tooltip=[VT, "series:N", alt.Tooltip("°C:Q", format=".1f")]
     ).properties(height=300), use_container_width=True)
     c1, c2, c3 = st.columns(3)
     if len(w):
@@ -184,7 +209,7 @@ with tab_bt:
     base = alt.Chart(w).encode(x=alt.X("valid:T", title="Valid time (IST)"))
     prob = base.mark_line(color="#1f77b4").encode(
         y=alt.Y("rain_prob:Q", title="P(rain ≥ 0.1 mm)", scale=alt.Scale(domain=[0, 1])),
-        tooltip=["valid:T", alt.Tooltip("rain_prob:Q", format=".2f")])
+        tooltip=[VT, alt.Tooltip("rain_prob:Q", format=".2f")])
     wet = base.transform_filter(alt.datum.y_rain == 1).mark_tick(color="#2ca02c", thickness=2).encode(
         y=alt.value(4))
     st.altair_chart((prob + wet).properties(height=200, title="Rain probability (green ticks = "
@@ -199,7 +224,7 @@ with tab_bt:
         x=alt.X("valid:T", title="Valid time (IST)"), y=alt.Y("mm:Q", title="Rain (mm/h)"),
         color=alt.Color("series:N", scale=alt.Scale(domain=list(anames.values()),
                         range=["#9467bd", "#1f77b4", "#ff7f0e"])),
-        tooltip=["valid:T", "series:N", alt.Tooltip("mm:Q", format=".2f")]
+        tooltip=[VT, "series:N", alt.Tooltip("mm:Q", format=".2f")]
     ).properties(height=250, title="Hourly rain amount"), use_container_width=True)
     st.caption("The LightGBM amount is an expected value: P(rain) × amount if it rains. It spreads "
                "uncertain peaks out, so it rarely reaches the heaviest hourly totals.")

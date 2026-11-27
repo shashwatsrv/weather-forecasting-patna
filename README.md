@@ -2,6 +2,8 @@
 
 Supervised models that forecast temperature and rain 1h, 6h and 24h ahead for one ERA5 grid cell near Patna, evaluated against strong baselines on a held-out year. This is a historical backtesting experiment on reanalysis data, not an operational forecast. Since November 2026, the frozen models also run live every hour next to ECMWF and GFS forecasts ([live test](#live-test-in-progress)).
 
+**Live dashboard:** [patnaweatherforecast.streamlit.app](https://patnaweatherforecast.streamlit.app/) (latest logged forecast plus the 2025 backtest).
+
 ## Results on the held-out year (2025)
 
 The configuration was frozen before 2025 was looked at (commit `d0ddb5a`), the final models were trained on 2011-2024, and 2025 was scored **once** (2026-11-24). The evaluation script refuses to run a second time.
@@ -151,7 +153,7 @@ $env:WEATHER_DATA_DIR = "D:\datasets\weather-patna"   # any folder outside the r
 .venv\Scripts\python -m src.models.save_final_models           # save frozen models for live use
 .venv\Scripts\python -m src.live.log_forecasts                  # one live forecast (run hourly)
 .venv\Scripts\python -m src.live.score_live                     # score the live log against ERA5
-.venv\Scripts\python -m streamlit run app\app.py                 # backtest dashboard
+.venv\Scripts\python -m streamlit run app\app.py                 # dashboard (live log + backtest)
 ```
 
 The frozen hyperparameters, smearing factors and baselines are in `src/models/frozen_config.py`, so `tune_cv` and `rain_amount_correction` only need re-running to check how they were chosen. LightGBM results can differ slightly between versions and machines. `save_final_models` checks that the saved models reproduce the frozen 2025 predictions before saving them. Live logging runs on GitHub Actions in the log repo. To log from your own machine instead, point Windows Task Scheduler at `scripts\log_forecast.cmd`.
