@@ -112,7 +112,7 @@ with tab_live:
             "ECMWF IFS °C": cur["ecmwf_ifs025_temp"], "GFS °C": cur["gfs_seamless_temp"],
             "LightGBM P(rain)": cur["lgbm_rain_prob"], "baseline P(rain)": cur["base_rain"],
             "ECMWF IFS mm": cur["ecmwf_ifs025_precip"], "GFS mm": cur["gfs_seamless_precip"]})
-        st.dataframe(tbl.round(2), hide_index=True, use_container_width=True)
+        st.dataframe(tbl.round(2), hide_index=True, width="stretch")
         st.caption("Rain = at least 0.1 mm in the hour. ECMWF IFS and GFS are weather-service "
                    "forecasts for the same hours, shown for comparison; they give an amount, "
                    "not a probability. The LightGBM inputs are the last 3 days from the ECMWF "
@@ -133,7 +133,7 @@ with tab_live:
                             range=["#1f77b4", "#2ca02c", "#d62728"])),
             tooltip=[VT, "series:N", alt.Tooltip("°C:Q", format=".1f")]
         ).properties(height=280, title=f"Temperature forecasts issued in the last 3 days, {hh}h ahead"),
-            use_container_width=True)
+            width="stretch")
         st.info("**Not verified yet.** These forecasts are scored against ERA5 once it catches "
                 "up (about 5 days later). It takes a few months of logging before the "
                 "comparison with the weather services means much. Raw log: "
@@ -177,7 +177,7 @@ with tab_bt:
     show = hd[["target", "slice", "baseline", "baseline_score", "model_score", "skill (95% CI)"]]
     st.dataframe(show.rename(columns={"baseline_score": "baseline", "model_score": "LightGBM",
                                       "baseline": "baseline name"}).round(3),
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")
     st.caption("Skill = 1 - model error / baseline error (MAE for temperature, Brier score for "
                "rain occurrence, RMSE for rain amount). Intervals come from resampling whole days. "
                "Rain occurrence isn't scored on heavy-rain days, because that slice is defined by "
@@ -195,7 +195,7 @@ with tab_bt:
         color=alt.Color("series:N", scale=alt.Scale(domain=list(names.values()),
                         range=["#9467bd", "#1f77b4", "#ff7f0e"])),
         tooltip=[VT, "series:N", alt.Tooltip("°C:Q", format=".1f")]
-    ).properties(height=300), use_container_width=True)
+    ).properties(height=300), width="stretch")
     c1, c2, c3 = st.columns(3)
     if len(w):
         em, eb = (w["temp_lgbm"] - w["y_temp"]).abs().mean(), (w["temp_best_baseline"] - w["y_temp"]).abs().mean()
@@ -213,7 +213,7 @@ with tab_bt:
     wet = base.transform_filter(alt.datum.y_rain == 1).mark_tick(color="#2ca02c", thickness=2).encode(
         y=alt.value(4))
     st.altair_chart((prob + wet).properties(height=200, title="Rain probability (green ticks = "
-                    "it actually rained that hour)"), use_container_width=True)
+                    "it actually rained that hour)"), width="stretch")
 
     al = w.melt(id_vars="valid", value_vars=["y_amount", "amt_expected", "amt_best_baseline"],
                 var_name="series", value_name="mm")
@@ -225,7 +225,7 @@ with tab_bt:
         color=alt.Color("series:N", scale=alt.Scale(domain=list(anames.values()),
                         range=["#9467bd", "#1f77b4", "#ff7f0e"])),
         tooltip=[VT, "series:N", alt.Tooltip("mm:Q", format=".2f")]
-    ).properties(height=250, title="Hourly rain amount"), use_container_width=True)
+    ).properties(height=250, title="Hourly rain amount"), width="stretch")
     st.caption("The LightGBM amount is an expected value: P(rain) × amount if it rains. It spreads "
                "uncertain peaks out, so it rarely reaches the heaviest hourly totals.")
 
@@ -244,7 +244,7 @@ with tab_bt:
         color=alt.Color("season:N", scale=alt.Scale(domain=["monsoon", "non-monsoon"],
                         range=["#1f77b4", "#ff7f0e"])), tooltip=["season", alt.Tooltip("forecast:Q", format=".2f"),
                                    alt.Tooltip("observed:Q", format=".2f"), "n"]))
-        .properties(height=300, title="Rain probability calibration"), use_container_width=True)
+        .properties(height=300, title="Rain probability calibration"), width="stretch")
 
     day = d.groupby("day").agg(observed=("y_amount", "sum"), forecast=("amt_expected", "sum"),
                                hours=("y_amount", "size")).reset_index()
@@ -258,7 +258,7 @@ with tab_bt:
         color=alt.Color("heavy day:N", scale=alt.Scale(domain=[False, True], range=["#9ecae1", "#d62728"])),
         tooltip=["day:T", alt.Tooltip("observed:Q", format=".1f"), alt.Tooltip("forecast:Q", format=".1f")]))
         .properties(height=300, title=f"Daily rain totals (heavy day ≥ {HEAVY_DAY_MM} mm)"),
-        use_container_width=True)
+        width="stretch")
     st.caption(f"Wet hour = at least {RAIN_THRESHOLD_MM} mm. Points above the diagonal on the left "
                "mean the model was under-confident: it rained more often than it said.")
 
