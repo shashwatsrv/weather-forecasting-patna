@@ -67,7 +67,7 @@ Everything above is a backtest on past data. To test the frozen models on weathe
 
 ### How it works
 
-- **Every hour**, a GitHub Actions workflow in the separate repo [weather-patna-live-log](https://github.com/shashwatsrv/weather-patna-live-log) runs `src/live/log_forecasts.py`:
+- **Every hour** (started by cron-job.org, with GitHub's own schedule as a backup), a GitHub Actions workflow in the separate repo [weather-patna-live-log](https://github.com/shashwatsrv/weather-patna-live-log) runs `src/live/log_forecasts.py`:
   - It uses this repo's code pinned at commit `eb987d5` and the frozen final models (trained on 2011-2024), so the live test can't be affected by later changes here.
   - It fetches the last 3 days of weather for the same grid cell from Open-Meteo's ECMWF IFS feed. ERA5 arrives about 5 days late, so it can't be used as a live input.
   - It builds features with the same code as in training.
@@ -101,7 +101,7 @@ Results will be added here at those points, whichever way they come out, includi
 - **IFS has a built-in advantage:** it comes from the same model family as ERA5, the data everything is scored against.
 - **Live inputs differ from the training inputs** (IFS instead of ERA5), which will probably cost the LightGBM models some skill compared with the backtest.
 - **Weather-service rain is a single amount, not a probability.** For the Brier score, a forecast of at least 0.1 mm counts as 1 and anything less as 0.
-- **Gaps are expected:** GitHub's scheduler often runs late or skips runs. On the first day only 2 of about 22 hourly runs started. The workflow now tries every 15 minutes, and only the first successful try in each hour logs a forecast. Hours that are still missed stay missing, because a forecast can't be logged after the fact. All forecasts are scored on the same hours.
+- **Gaps in the first two days:** GitHub's built-in scheduler proved unreliable for a small repo, starting only 4 of about 90 scheduled runs. Since 27 November 2026, an external scheduler (cron-job.org) starts the workflow every hour through GitHub's API, and GitHub's own schedule stays on as a backup. Only the first successful run in each hour logs a forecast. Hours that are missed stay missing, because a forecast can't be logged after the fact. All forecasts are scored on the same hours.
 
 ## Method in brief
 
